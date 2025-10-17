@@ -1,0 +1,14 @@
+{
+  "name": "ffmpeg-api-railway",
+  "version": "1.0.0",
+  "description": "API HTTP simples para usar FFmpeg via n8n",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "node-fetch": "^3.3.2"
+  }
+}
