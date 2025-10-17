@@ -163,7 +163,7 @@ app.get("/", async (req, res) => {
       results.push({ endpoint: ep, status: "offline", message: "❌ Sem resposta" });
     }
 
-    await delay(2000); // pequena pausa entre endpoints
+    await delay(500); // pequena pausa entre endpoints
   }
 
   process.env.NODE_ENV = "production"; // ✅ volta logs ao normal
