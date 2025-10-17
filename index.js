@@ -123,7 +123,7 @@ for (const ep of simpleEndpoints) {
 
 // --------------- 4️⃣ HEALTHCHECK / STATUS ---------------
 app.get("/", async (req, res) => {
-  process.env.NODE_ENV = "health"; // 🚫 ativa modo silencioso
+  process.env.NODE_ENV = "health"; // 🚫 ativa modo silencioso para logs do FFmpeg
 
   const endpoints = [
     "convert-audio", "convert-video", "merge",
@@ -136,41 +136,50 @@ app.get("/", async (req, res) => {
   const results = [];
   const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-  for (const ep of endpoints) {
-    try {
-      const body =
-        ep === "merge"
-          ? { urls: [testVideo1, testVideo2], format: "mp4", filename: "merge_test" }
-          : { url: testVideo1 };
+  // executa até 4 endpoints simultaneamente por bloco
+  const chunkSize = 4;
+  for (let i = 0; i < endpoints.length; i += chunkSize) {
+    const batch = endpoints.slice(i, i + chunkSize);
 
-      const r = await fetch(`http://localhost:${PORT}/${ep}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body)
-      });
+    const batchResults = await Promise.all(
+      batch.map(async (ep) => {
+        try {
+          const body =
+            ep === "merge"
+              ? { urls: [testVideo1, testVideo2], format: "mp4", filename: "merge_test" }
+              : { url: testVideo1 };
 
-      results.push({
-        endpoint: ep,
-        status: r.status,
-        message:
-          r.status === 200
-            ? "✅ OK"
-            : r.status === 400
-            ? "⚠️ Requisição inválida (provável input ausente)"
-            : "❌ Erro"
-      });
-    } catch {
-      results.push({ endpoint: ep, status: "offline", message: "❌ Sem resposta" });
-    }
+          const r = await fetch(`http://localhost:${PORT}/${ep}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body)
+          });
 
-    await delay(500); // pequena pausa entre endpoints
+          return {
+            endpoint: ep,
+            status: r.status,
+            message:
+              r.status === 200
+                ? "✅ OK"
+                : r.status === 400
+                ? "⚠️ Requisição inválida (provável input ausente)"
+                : "❌ Erro"
+          };
+        } catch {
+          return { endpoint: ep, status: "offline", message: "❌ Sem resposta" };
+        }
+      })
+    );
+
+    results.push(...batchResults);
+    await delay(1500); // pausa entre blocos para aliviar carga
   }
 
-  process.env.NODE_ENV = "production"; // ✅ volta logs ao normal
+  process.env.NODE_ENV = "production"; // ✅ restaura logs normais
 
   res.json({
     service: "FFmpeg API",
-    version: "v2.0 unified (silenced healthcheck)",
+    version: "v2.0 unified (parallel healthcheck)",
     endpoints: results
   });
 });
