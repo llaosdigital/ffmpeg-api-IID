@@ -149,7 +149,7 @@ for (const ep of simpleEndpoints) {
   app.post(`/${ep}`, (req, res) => res.json({ status: `${ep} placeholder OK` }));
 }
 
-// ====================== 🩺 HEALTHCHECK / STATUS ======================
+// --------------- 4️⃣ HEALTHCHECK / STATUS ---------------
 app.get("/", async (req, res) => {
   process.env.NODE_ENV = "health";
 
@@ -163,6 +163,7 @@ app.get("/", async (req, res) => {
   const testVideo2 = "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4";
   const results = [];
   const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+  const apiKeyEnv = process.env.API_KEY || null;
 
   const chunkSize = 4;
   for (let i = 0; i < endpoints.length; i += chunkSize) {
@@ -177,7 +178,10 @@ app.get("/", async (req, res) => {
 
           const r = await fetch(`http://localhost:${PORT}/${ep}`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              ...(apiKeyEnv ? { "x-api-key": apiKeyEnv } : {}) // 🔑 injeta API key
+            },
             body: JSON.stringify(body)
           });
 
