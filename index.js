@@ -98,21 +98,15 @@ app.post("/merge", async (req, res) => {
   }
 });
 
-// --------------- 3️⃣ OUTROS ENDPOINTS (v2) ---------------
-app.post("/equalize", (req, res) => res.json({ status: "equalizer placeholder OK" }));
-app.post("/speed-audio", (req, res) => res.json({ status: "speed change placeholder OK" }));
-app.post("/mix-audio", (req, res) => res.json({ status: "mix audio placeholder OK" }));
-app.post("/cut-audio", (req, res) => res.json({ status: "cut audio placeholder OK" }));
-app.post("/fade", (req, res) => res.json({ status: "fade audio placeholder OK" }));
-app.post("/waveform", (req, res) => res.json({ status: "waveform placeholder OK" }));
-app.post("/cut-video", (req, res) => res.json({ status: "cut video placeholder OK" }));
-app.post("/resize", (req, res) => res.json({ status: "resize placeholder OK" }));
-app.post("/rotate", (req, res) => res.json({ status: "rotate placeholder OK" }));
-app.post("/watermark", (req, res) => res.json({ status: "watermark placeholder OK" }));
-app.post("/gif", (req, res) => res.json({ status: "gif placeholder OK" }));
-app.post("/thumbnail", (req, res) => res.json({ status: "thumbnail placeholder OK" }));
-app.post("/compress", (req, res) => res.json({ status: "compress placeholder OK" }));
-app.post("/analyze", (req, res) => res.json({ status: "analyze placeholder OK" }));
+// --------------- 3️⃣ OUTROS ENDPOINTS (v2 placeholders) ---------------
+const simpleEndpoints = [
+  "equalize","speed-audio","mix-audio","cut-audio","fade","waveform",
+  "cut-video","resize","rotate","watermark","gif","thumbnail","compress","analyze"
+];
+
+for (const ep of simpleEndpoints) {
+  app.post(`/${ep}`, (req, res) => res.json({ status: `${ep} placeholder OK` }));
+}
 
 // --------------- 4️⃣ HEALTHCHECK / STATUS ---------------
 app.get("/", async (req, res) => {
@@ -122,17 +116,35 @@ app.get("/", async (req, res) => {
     "cut-video", "resize", "rotate", "watermark", "gif", "thumbnail", "compress", "analyze"
   ];
 
+  const testVideo1 = "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4";
+  const testVideo2 = "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4";
   const results = [];
+
   for (const ep of endpoints) {
     try {
+      const body =
+        ep === "merge"
+          ? { urls: [testVideo1, testVideo2], format: "mp4", filename: "merge_test" }
+          : { url: testVideo1 };
+
       const r = await fetch(`http://localhost:${PORT}/${ep}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: "https://example.com/test.mp4" })
+        body: JSON.stringify(body)
       });
-      results.push({ endpoint: ep, status: r.status });
+
+      results.push({
+        endpoint: ep,
+        status: r.status,
+        message:
+          r.status === 200
+            ? "✅ OK"
+            : r.status === 400
+            ? "⚠️ Requisição inválida (provável input ausente)"
+            : "❌ Erro"
+      });
     } catch {
-      results.push({ endpoint: ep, status: "offline" });
+      results.push({ endpoint: ep, status: "offline", message: "❌ Sem resposta" });
     }
   }
 
