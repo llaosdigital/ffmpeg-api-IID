@@ -9,6 +9,7 @@
     "node-fetch": "^3.3.2"
   },
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "postinstall": "apt-get update && apt-get install -y ffmpeg"
   }
 }
