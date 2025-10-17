@@ -1,2 +1,8 @@
 [phases.setup]
-aptPkgs = ["ffmpeg"]
+nixPkgs = ["nodejs", "ffmpeg"]
+
+[phases.install]
+cmds = ["npm install"]
+
+[start]
+cmd = "node index.js"
