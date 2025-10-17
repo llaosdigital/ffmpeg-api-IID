@@ -29,6 +29,11 @@ app.post("/convert-audio", async (req, res) => {
     const output = path.join(os.tmpdir(), `audio_${Date.now()}.${format}`);
     const ffmpeg = spawn("ffmpeg", ["-i", input, "-vn", "-acodec", "libmp3lame", output]);
 
+    ffmpeg.stderr.on("data", d => {
+      if (process.env.NODE_ENV === "health") return; // 🚫 não loga durante healthcheck
+      console.log(d.toString());
+    });
+
     ffmpeg.on("close", async code => {
       if (code !== 0) return res.status(500).json({ error: "Erro FFmpeg" });
       const data = await fs.promises.readFile(output);
@@ -48,6 +53,11 @@ app.post("/convert-video", async (req, res) => {
     const input = await downloadTempFile(url, "video");
     const output = path.join(os.tmpdir(), `video_${Date.now()}.${format}`);
     const ffmpeg = spawn("ffmpeg", ["-i", input, "-c:v", "libx264", "-preset", "ultrafast", output]);
+
+    ffmpeg.stderr.on("data", d => {
+      if (process.env.NODE_ENV === "health") return;
+      console.log(d.toString());
+    });
 
     ffmpeg.on("close", async code => {
       if (code !== 0) return res.status(500).json({ error: "Erro FFmpeg" });
@@ -78,7 +88,10 @@ app.post("/merge", async (req, res) => {
     const outputPath = path.join(os.tmpdir(), `${filename}.${format}`);
 
     const ffmpeg = spawn("ffmpeg", ["-y", "-f", "concat", "-safe", "0", "-i", listFile, "-c", "copy", outputPath]);
-    ffmpeg.stderr.on("data", d => console.log(d.toString()));
+    ffmpeg.stderr.on("data", d => {
+      if (process.env.NODE_ENV === "health") return;
+      console.log(d.toString());
+    });
 
     ffmpeg.on("close", code => {
       tempFiles.forEach(f => fs.existsSync(f) && fs.unlinkSync(f));
@@ -110,6 +123,8 @@ for (const ep of simpleEndpoints) {
 
 // --------------- 4️⃣ HEALTHCHECK / STATUS ---------------
 app.get("/", async (req, res) => {
+  process.env.NODE_ENV = "health"; // 🚫 ativa modo silencioso
+
   const endpoints = [
     "convert-audio", "convert-video", "merge",
     "equalize", "speed-audio", "mix-audio", "cut-audio", "fade", "waveform",
@@ -119,8 +134,6 @@ app.get("/", async (req, res) => {
   const testVideo1 = "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4";
   const testVideo2 = "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4";
   const results = [];
-
-  // função auxiliar para esperar X milissegundos
   const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
   for (const ep of endpoints) {
@@ -146,18 +159,18 @@ app.get("/", async (req, res) => {
             ? "⚠️ Requisição inválida (provável input ausente)"
             : "❌ Erro"
       });
-
     } catch {
       results.push({ endpoint: ep, status: "offline", message: "❌ Sem resposta" });
     }
 
-    // pausa de 2 segundos entre cada endpoint
-    await delay(2000);
+    await delay(2000); // pequena pausa entre endpoints
   }
+
+  process.env.NODE_ENV = "production"; // ✅ volta logs ao normal
 
   res.json({
     service: "FFmpeg API",
-    version: "v2.0 unified (delayed healthcheck)",
+    version: "v2.0 unified (silenced healthcheck)",
     endpoints: results
   });
 });
