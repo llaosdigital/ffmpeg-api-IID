@@ -120,6 +120,9 @@ app.get("/", async (req, res) => {
   const testVideo2 = "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4";
   const results = [];
 
+  // função auxiliar para esperar X milissegundos
+  const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
   for (const ep of endpoints) {
     try {
       const body =
@@ -143,14 +146,18 @@ app.get("/", async (req, res) => {
             ? "⚠️ Requisição inválida (provável input ausente)"
             : "❌ Erro"
       });
+
     } catch {
       results.push({ endpoint: ep, status: "offline", message: "❌ Sem resposta" });
     }
+
+    // pausa de 2 segundos entre cada endpoint
+    await delay(2000);
   }
 
   res.json({
     service: "FFmpeg API",
-    version: "v2.0 unified",
+    version: "v2.0 unified (delayed healthcheck)",
     endpoints: results
   });
 });
