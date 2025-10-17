@@ -141,8 +141,8 @@ app.post("/merge", async (req, res) => {
 
 // ====================== 🧩 OUTROS ENDPOINTS (v2 placeholders) ======================
 const simpleEndpoints = [
-  "equalize","speed-audio","mix-audio","cut-audio","fade","waveform",
-  "cut-video","resize","rotate","watermark","gif","thumbnail","compress","analyze"
+  "equalize", "speed-audio", "mix-audio", "cut-audio", "fade", "waveform",
+  "cut-video", "resize", "rotate", "watermark", "gif", "thumbnail", "compress", "analyze"
 ];
 
 for (const ep of simpleEndpoints) {
@@ -164,8 +164,10 @@ app.get("/", async (req, res) => {
   const results = [];
   const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
   const apiKeyEnv = process.env.API_KEY || null;
-
   const chunkSize = 4;
+  const PORT = process.env.PORT || 8080;
+
+  // Executa healthcheck real em blocos
   for (let i = 0; i < endpoints.length; i += chunkSize) {
     const batch = endpoints.slice(i, i + chunkSize);
 
@@ -180,7 +182,7 @@ app.get("/", async (req, res) => {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              ...(apiKeyEnv ? { "x-api-key": apiKeyEnv } : {}) // 🔑 injeta API key
+              ...(apiKeyEnv ? { "x-api-key": apiKeyEnv } : {})
             },
             body: JSON.stringify(body)
           });
@@ -192,7 +194,7 @@ app.get("/", async (req, res) => {
               r.status === 200
                 ? "✅ OK"
                 : r.status === 400
-                ? "⚠️ Requisição inválida (provável input ausente)"
+                ? "⚠️ Input ausente"
                 : "❌ Erro"
           };
         } catch {
@@ -202,11 +204,67 @@ app.get("/", async (req, res) => {
     );
 
     results.push(...batchResults);
-    await delay(1500);
+    await delay(1200);
   }
 
   process.env.NODE_ENV = "production";
 
+  // Se for navegador → renderiza HTML
+  if (req.headers.accept?.includes("text/html")) {
+    const rows = results.map(r => `
+      <tr>
+        <td style="padding:8px;border:1px solid #ccc;">/${r.endpoint}</td>
+        <td style="padding:8px;border:1px solid #ccc;text-align:center;">${r.message}</td>
+      </tr>
+    `).join("");
+
+    const html = `
+      <!DOCTYPE html>
+      <html lang="pt-BR">
+        <head>
+          <meta charset="UTF-8" />
+          <title>🎬 FFmpeg API-IID v2.1 - Healthcheck</title>
+          <style>
+            body { font-family: Arial, sans-serif; background:#fafafa; margin:40px; color:#333; }
+            h1 { color:#222; }
+            table { border-collapse:collapse; width:100%; max-width:600px; background:#fff; }
+            th { background:#f0f0f0; padding:10px; border:1px solid #ccc; }
+            td { border:1px solid #ccc; }
+            button {
+              margin-top: 20px;
+              padding: 8px 16px;
+              border: none;
+              background: #0078d7;
+              color: white;
+              font-size: 15px;
+              border-radius: 6px;
+              cursor: pointer;
+            }
+            button:hover { background: #005fa3; }
+            footer {
+              margin-top: 20px;
+              font-size: 14px;
+              color: #a5c936;
+            }
+          </style>
+        </head>
+        <body>
+          <h1>🎬 FFmpeg API v2.1 - Healthcheck</h1>
+          <table>
+            <tr><th>Endpoint</th><th>Status</th></tr>
+            ${rows}
+          </table>
+          <button onclick="location.reload()">🔄 Atualizar</button>
+          <footer>
+            Serviço ativo em ${new Date().toLocaleString('pt-BR')}
+          </footer>
+        </body>
+      </html>
+    `;
+    return res.send(html);
+  }
+
+  // Caso contrário → JSON normal (para n8n, Postman, etc.)
   res.json({
     service: "FFmpeg API",
     version: "v2.1 unified (API key + parallel healthcheck)",
