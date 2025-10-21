@@ -1,4 +1,4 @@
-// index.js – FFmpeg API completa (v1 + v2 unificada + API KEY)
+// index.js – FFmpeg API completa (v2.2 blindada + API KEY)
 import express from "express";
 import cors from "cors";
 import fetch from "node-fetch";
@@ -6,25 +6,59 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { spawn } from "child_process";
+import rateLimit from "express-rate-limit";
 
 const app = express();
+app.disable("x-powered-by"); // remove header de identificação
 app.use(express.json({ limit: "200mb" }));
 app.use(cors());
+
+// ====================== 🧱 BLOQUEIO DE SCANNERS E ROTAS SUSPEITAS ======================
+app.use((req, res, next) => {
+  const pathSuspect = req.path.toLowerCase();
+  const blocked = [
+    ".env",
+    ".git",
+    "php",
+    "phpinfo",
+    "config",
+    "backup",
+    "test"
+  ];
+  if (blocked.some(b => pathSuspect.includes(b))) {
+    console.warn(`🚫 Tentativa bloqueada: ${req.path} de ${req.ip}`);
+    return res.status(403).send("Forbidden");
+  }
+  next();
+});
+
+// ====================== ⏳ RATE LIMITER ======================
+const limiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minuto
+  max: 50, // máximo de 50 requisições por IP/min
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    console.warn(`⚠️ IP ${req.ip} excedeu limite de requisições.`);
+    res.status(429).json({ error: "Too many requests, try again later." });
+  },
+});
+app.use(limiter);
 
 // ====================== 🔐 Middleware de API Key ======================
 function checkApiKey(req, res, next) {
   const apiKeyEnv = process.env.API_KEY;
 
-  // Se não há API_KEY definida, apenas avisa (modo livre)
   if (!apiKeyEnv) {
-    console.warn("⚠️ Nenhuma API_KEY configurada no ambiente — acesso liberado.");
+    console.error("❌ Nenhuma API_KEY configurada no ambiente — abortando inicialização.");
+    process.exit(1);
+  }
+
+  // Permite o healthcheck local
+  if (req.method === "GET" && req.path === "/" && process.env.NODE_ENV === "health") {
     return next();
   }
 
-  // Ignora a checagem para o healthcheck
-  if (req.method === "GET" && req.path === "/") return next();
-
-  // Aceita via Header ou Bearer
   const headerKey =
     req.headers["x-api-key"] ||
     (req.headers["authorization"] && req.headers["authorization"].split(" ")[1]);
@@ -35,8 +69,6 @@ function checkApiKey(req, res, next) {
 
   next();
 }
-
-// Aplica o middleware global (afeta tudo exceto GET /)
 app.use(checkApiKey);
 
 // ====================== ⚙️ Função auxiliar ======================
@@ -149,6 +181,11 @@ for (const ep of simpleEndpoints) {
   app.post(`/${ep}`, (req, res) => res.json({ status: `${ep} placeholder OK` }));
 }
 
+// ====================== 🌐 ROBOTS.TXT ======================
+app.get("/robots.txt", (req, res) => {
+  res.type("text/plain").send("User-agent: *\nDisallow: /");
+});
+
 // --------------- 4️⃣ HEALTHCHECK / STATUS ---------------
 app.get("/", async (req, res) => {
   process.env.NODE_ENV = "health";
@@ -167,10 +204,8 @@ app.get("/", async (req, res) => {
   const chunkSize = 4;
   const PORT = process.env.PORT || 8080;
 
-  // Executa healthcheck real em blocos
   for (let i = 0; i < endpoints.length; i += chunkSize) {
     const batch = endpoints.slice(i, i + chunkSize);
-
     const batchResults = await Promise.all(
       batch.map(async (ep) => {
         try {
@@ -209,7 +244,6 @@ app.get("/", async (req, res) => {
 
   process.env.NODE_ENV = "production";
 
-  // Se for navegador → renderiza HTML
   if (req.headers.accept?.includes("text/html")) {
     const rows = results.map(r => `
       <tr>
@@ -223,7 +257,7 @@ app.get("/", async (req, res) => {
       <html lang="pt-BR">
         <head>
           <meta charset="UTF-8" />
-          <title>🎬 FFmpeg API-IID v2.1 - Healthcheck</title>
+          <title>🎬 FFmpeg API-IID v2.2 - Healthcheck</title>
           <style>
             body { font-family: Arial, sans-serif; background:#fafafa; margin:40px; color:#333; }
             h1 { color:#222; }
@@ -249,7 +283,7 @@ app.get("/", async (req, res) => {
           </style>
         </head>
         <body>
-          <h1>🎬 FFmpeg API-IID v2.1 - Healthcheck</h1>
+          <h1>🎬 FFmpeg API-IID v2.2 - Healthcheck</h1>
           <table>
             <tr><th>Endpoint</th><th>Status</th></tr>
             ${rows}
@@ -264,10 +298,9 @@ app.get("/", async (req, res) => {
     return res.send(html);
   }
 
-  // Caso contrário → JSON normal (para n8n, Postman, etc.)
   res.json({
     service: "FFmpeg API",
-    version: "v2.1 unified (API key + parallel healthcheck)",
+    version: "v2.2 blindada (API key + parallel healthcheck + rate limit)",
     endpoints: results
   });
 });
