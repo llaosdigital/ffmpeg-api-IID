@@ -54,10 +54,10 @@ function checkApiKey(req, res, next) {
     process.exit(1);
   }
 
-  // Permite o healthcheck local
-  if (req.method === "GET" && req.path === "/" && process.env.NODE_ENV === "health") {
-    return next();
-  }
+// Libera acesso público ao painel de status /
+if (req.method === "GET" && req.path === "/") {
+  return next();
+}
 
   const headerKey =
     req.headers["x-api-key"] ||
