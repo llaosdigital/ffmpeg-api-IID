@@ -259,6 +259,6 @@ app.get("/", async (req, res) => {
   });
 });
 
-// ====================== 🚀 START ======================
+// ====================== 🚀 START =====================
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => console.log(`✅ API FFmpeg rodando na porta ${PORT}`));
