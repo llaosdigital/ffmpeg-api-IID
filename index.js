@@ -1,4 +1,4 @@
-// index.js – FFmpeg API completa (v2.4 unificada + base64 + segurança + proxy fix)
+// index.js – FFmpeg API completa (v2.5 blindada + base64 + proxy fix + segurança)
 import express from "express";
 import cors from "cors";
 import fetch from "node-fetch";
@@ -8,10 +8,19 @@ import path from "path";
 import { spawn } from "child_process";
 import rateLimit from "express-rate-limit";
 
-const app = express();
+// ====================== 🧩 PATCH GLOBAL – Corrige proxy e warnings ======================
+process.env.EXPRESS_RATE_LIMIT_DISABLE_WARNINGS = "true";
+process.on("uncaughtException", err => {
+  if (err.code === "ERR_ERL_UNEXPECTED_X_FORWARDED_FOR") {
+    console.warn("ℹ️ Aviso ignorado com segurança: Railway usa proxy confiável.");
+  } else {
+    console.error("❌ Erro não tratado:", err);
+  }
+});
 
-// ⚙️ Confiança no proxy (necessário para Railway e rate-limit)
-app.set("trust proxy", 1);
+// ====================== ⚙️ CONFIGURAÇÃO EXPRESS ======================
+const app = express();
+app.set("trust proxy", 1); // confia no proxy do Railway
 app.disable("x-powered-by");
 app.use(express.json({ limit: "200mb" }));
 app.use(cors());
@@ -30,10 +39,10 @@ app.use((req, res, next) => {
 // ====================== ⏳ RATE LIMITER ======================
 const limiter = rateLimit({
   windowMs: 60 * 1000, // 1 minuto
-  max: 50, // máximo de 50 req/min por IP
+  max: 50, // máximo de 50 req/min/IP
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.ip, // garante IP real
+  keyGenerator: req => req.ip,
   handler: (req, res) => {
     console.warn(`⚠️ IP ${req.ip} excedeu limite de requisições.`);
     res.status(429).json({ error: "Too many requests, try again later." });
@@ -49,7 +58,6 @@ function checkApiKey(req, res, next) {
     process.exit(1);
   }
 
-  // Libera o painel /
   if (req.method === "GET" && req.path === "/") return next();
 
   const headerKey =
@@ -93,7 +101,6 @@ app.post("/convert-audio", async (req, res) => {
 
     const output = path.join(os.tmpdir(), `audio_${Date.now()}.${format}`);
     const codec = format === "wav" ? "pcm_s16le" : "libmp3lame";
-
     const ffmpeg = spawn("ffmpeg", ["-i", input, "-vn", "-acodec", codec, output]);
 
     ffmpeg.stderr.on("data", d => console.log(d.toString()));
@@ -258,7 +265,7 @@ app.get("/", async (req, res) => {
   process.env.NODE_ENV = "production";
   res.json({
     service: "FFmpeg API",
-    version: "v2.4 blindada (base64 + API key + proxy trust + healthcheck + rate limit)",
+    version: "v2.5 blindada (base64 + API key + proxy trust + rate limit fix)",
     endpoints: results
   });
 });
