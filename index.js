@@ -9,6 +9,7 @@ import { spawn } from "child_process";
 import rateLimit from "express-rate-limit";
 
 const app = express();
+app.set("trust proxy", true);
 app.disable("x-powered-by");
 app.use(express.json({ limit: "200mb" }));
 app.use(cors());
